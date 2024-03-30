@@ -18,8 +18,9 @@ fn main() {
     for tu in translation_units.iter() {
         functions.extend(
             tu.get_entity().get_children().into_iter().filter(|e| {
-                e.get_kind() == EntityKind::FunctionDecl ||
-                e.get_kind() == EntityKind::FunctionTemplate
+                (e.get_kind() == EntityKind::FunctionDecl ||
+                 e.get_kind() == EntityKind::FunctionTemplate)
+                && e.is_definition()
             }).collect::<Vec<_>>()
         );
     }
@@ -27,12 +28,15 @@ fn main() {
     for tu in translation_units.iter() {
         let classes = tu.get_entity().get_children().into_iter().filter(|e| {
             e.get_kind() == EntityKind::ClassDecl ||
-            e.get_kind() == EntityKind::StructDecl
+            e.get_kind() == EntityKind::StructDecl ||
+            e.get_kind() == EntityKind::ClassTemplate ||
+            e.get_kind() == EntityKind::ClassTemplatePartialSpecialization
         }).collect::<Vec<_>>();
         for klass in classes.iter() {
             functions.extend(
                 klass.get_children().into_iter().filter(|e| {
                     e.get_kind() == EntityKind::Method
+                    && e.is_definition()
                 }).collect::<Vec<_>>()
             );
         }
