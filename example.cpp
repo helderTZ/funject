@@ -24,6 +24,14 @@ T get_foo(T t) {
     return t;
 }
 
+namespace deadbeef {
+    void dead();
+
+    void beef() {
+        printf("deadbeef::beef\n");
+    }
+}
+
 // --------- DEFINITIONS --------- //
 
 int foo(int a, int b) {
@@ -41,4 +49,8 @@ void FooBar::bazz() {
 
 void BarFoo::bazz() {
     printf("baz\n");
+}
+
+void deadbeef::dead() {
+    printf("deadbeef::dead\n");
 }

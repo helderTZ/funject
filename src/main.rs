@@ -9,7 +9,25 @@ fn get_next_left_bracket(string: &str, idx: usize) -> usize {
         }
         idx_of_next_left_bracket += 1;
     }
-    return idx_of_next_left_bracket;
+    idx_of_next_left_bracket
+}
+
+fn get_functions_from_entity<'a>(entity: &Entity<'a>) -> Vec<Entity<'a>> {
+    let mut functions: Vec<Entity> = vec![];
+    for e in entity.get_children().iter() {
+        match e.get_kind() {
+            EntityKind::FunctionDecl     => { if e.is_definition() { functions.push(*e); } },
+            EntityKind::FunctionTemplate => { if e.is_definition() { functions.push(*e); } },
+            EntityKind::Method           => { if e.is_definition() { functions.push(*e); } },
+            EntityKind::ClassDecl        => { if e.is_definition() { functions.extend(get_functions_from_entity(e)) } },
+            EntityKind::ClassTemplate    => { if e.is_definition() { functions.extend(get_functions_from_entity(e)) } },
+            EntityKind::ClassTemplatePartialSpecialization => { if e.is_definition() { functions.extend(get_functions_from_entity(e)) } },
+            EntityKind::StructDecl       => { if e.is_definition() { functions.extend(get_functions_from_entity(e)) } },
+            EntityKind::Namespace        => { if e.is_definition() { functions.extend(get_functions_from_entity(e)) } },
+            _ => {},
+        }
+    }
+    functions
 }
 
 fn main() {
@@ -27,30 +45,8 @@ fn main() {
     let mut functions: Vec<Entity> = vec![];
 
     for tu in translation_units.iter() {
-        functions.extend(
-            tu.get_entity().get_children().into_iter().filter(|e| {
-                (e.get_kind() == EntityKind::FunctionDecl ||
-                 e.get_kind() == EntityKind::FunctionTemplate)
-                && e.is_definition()
-            }).collect::<Vec<_>>()
-        );
-    }
-
-    for tu in translation_units.iter() {
-        let classes = tu.get_entity().get_children().into_iter().filter(|e| {
-            e.get_kind() == EntityKind::ClassDecl ||
-            e.get_kind() == EntityKind::StructDecl ||
-            e.get_kind() == EntityKind::ClassTemplate ||
-            e.get_kind() == EntityKind::ClassTemplatePartialSpecialization
-        }).collect::<Vec<_>>();
-        for klass in classes.iter() {
-            functions.extend(
-                klass.get_children().into_iter().filter(|e| {
-                    e.get_kind() == EntityKind::Method
-                    && e.is_definition()
-                }).collect::<Vec<_>>()
-            );
-        }
+        let entity = tu.get_entity();
+        functions.extend(get_functions_from_entity(&entity));
     }
 
     for function in functions.iter() {
