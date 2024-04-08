@@ -1,4 +1,5 @@
 #include <cstdio>
+#include "example.h"
 
 int foo(int a, int b);
 void bar();

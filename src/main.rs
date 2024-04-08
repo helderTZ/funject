@@ -12,19 +12,26 @@ fn get_next_left_bracket(string: &str, idx: usize) -> usize {
     idx_of_next_left_bracket
 }
 
-fn get_functions_from_entity<'a>(entity: &Entity<'a>) -> Vec<Entity<'a>> {
+fn is_entity_from_files(entity: &Entity, files: &[String]) -> bool {
+    let file = entity.get_location().unwrap().get_file_location().file.unwrap().get_path();
+    return files.contains(&file.into_os_string().into_string().unwrap());
+}
+
+fn get_functions_from_entity<'a>(entity: &Entity<'a>, follow_inc: bool, files: &[String]) -> Vec<Entity<'a>> {
     let mut functions: Vec<Entity> = vec![];
     for e in entity.get_children().iter() {
-        match e.get_kind() {
-            EntityKind::FunctionDecl     => { if e.is_definition() { functions.push(*e); } },
-            EntityKind::FunctionTemplate => { if e.is_definition() { functions.push(*e); } },
-            EntityKind::Method           => { if e.is_definition() { functions.push(*e); } },
-            EntityKind::ClassDecl        => { if e.is_definition() { functions.extend(get_functions_from_entity(e)) } },
-            EntityKind::ClassTemplate    => { if e.is_definition() { functions.extend(get_functions_from_entity(e)) } },
-            EntityKind::ClassTemplatePartialSpecialization => { if e.is_definition() { functions.extend(get_functions_from_entity(e)) } },
-            EntityKind::StructDecl       => { if e.is_definition() { functions.extend(get_functions_from_entity(e)) } },
-            EntityKind::Namespace        => { if e.is_definition() { functions.extend(get_functions_from_entity(e)) } },
-            _ => {},
+        if follow_inc || (!follow_inc && is_entity_from_files(&e, &files)) {
+            match e.get_kind() {
+                EntityKind::FunctionDecl     => { if e.is_definition() { functions.push(*e); } },
+                EntityKind::FunctionTemplate => { if e.is_definition() { functions.push(*e); } },
+                EntityKind::Method           => { if e.is_definition() { functions.push(*e); } },
+                EntityKind::ClassDecl        => { if e.is_definition() { functions.extend(get_functions_from_entity(e, follow_inc, files)) } },
+                EntityKind::ClassTemplate    => { if e.is_definition() { functions.extend(get_functions_from_entity(e, follow_inc, files)) } },
+                EntityKind::ClassTemplatePartialSpecialization => { if e.is_definition() { functions.extend(get_functions_from_entity(e, follow_inc, files)) } },
+                EntityKind::StructDecl       => { if e.is_definition() { functions.extend(get_functions_from_entity(e, follow_inc, files)) } },
+                EntityKind::Namespace        => { if e.is_definition() { functions.extend(get_functions_from_entity(e, follow_inc, files)) } },
+                _ => {},
+            }
         }
     }
     functions
@@ -35,7 +42,7 @@ fn get_files_in_dir(path: String) ->Vec<String> {
     let Ok(entries) = fs::read_dir(path) else { return vec![] };
     entries.flatten().flat_map(|e| {
         let Ok(meta) = e.metadata() else { return vec![] };
-        if meta.is_dir() { 
+        if meta.is_dir() {
             return get_files_in_dir(e.path().display().to_string());
         }
         if meta.is_file() && (e.path().extension().unwrap_or_default() == "cpp"
@@ -59,10 +66,11 @@ fn usage() {
     println!("    --dir <dirname> : Searches recursively for C/C++ source files in the directory `dirname`");
     println!("                      Overwrites files given as arguments.");
     println!("                      Searches only for files with extension *.c, *.cc, *.cpp, *.h, *.hpp .");
+    println!("    --follow-inc    : Recursively parse down '#include' directives and continue parsing the included file");
 }
 
 fn main() {
-    let commands = ["--inject", "--quiet", "--dir", "--help", "-h"];
+    let commands = ["--inject", "--quiet", "--dir", "--help", "-h", "--follow-inc"];
 
     let args: Vec<String> = env::args().skip(1).collect();
     let help: bool = args.contains(&"--help".to_owned()) || args.contains(&"-h".to_owned());
@@ -73,6 +81,7 @@ fn main() {
 
     let inject: bool = args.contains(&"--inject".to_owned());
     let quiet: bool = args.contains(&"--quiet".to_owned());
+    let follow_inc: bool = args.contains(&"--follow-inc".to_owned());
     let dir: bool = args.contains(&"--dir".to_owned());
     let mut dirname: Option<String> = None;
     if dir {
@@ -83,12 +92,13 @@ fn main() {
         Some(dirname) => get_files_in_dir(dirname),
         None => args.into_iter().filter(|a| { !commands.contains(&a.as_str()) }).collect::<Vec<String>>(),
     };
+    // println!("files: {:?}", files); // uncomment for debug
 
     let clang = Clang::new().unwrap();
     let index = Index::new(&clang, false, false);
 
     let mut translation_units: Vec<TranslationUnit> = vec![];
-    for file in files {
+    for file in files.iter() {
         if let Ok(tu) = index.parser(file).parse() {
             translation_units.push(tu);
         }
@@ -97,7 +107,7 @@ fn main() {
     let mut functions: Vec<Entity> = vec![];
     for tu in translation_units.iter() {
         let entity = tu.get_entity();
-        functions.extend(get_functions_from_entity(&entity));
+        functions.extend(get_functions_from_entity(&entity, follow_inc, &files));
     }
 
     if !quiet {
