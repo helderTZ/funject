@@ -14,13 +14,13 @@ fn get_next_left_bracket(string: &str, idx: usize) -> usize {
 
 fn is_entity_from_files(entity: &Entity, files: &[String]) -> bool {
     let file = entity.get_location().unwrap().get_file_location().file.unwrap().get_path();
-    return files.contains(&file.into_os_string().into_string().unwrap());
+    files.contains(&file.into_os_string().into_string().unwrap())
 }
 
 fn get_functions_from_entity<'a>(entity: &Entity<'a>, follow_inc: bool, files: &[String]) -> Vec<Entity<'a>> {
     let mut functions: Vec<Entity> = vec![];
     for e in entity.get_children().iter() {
-        if follow_inc || (!follow_inc && is_entity_from_files(&e, &files)) {
+        if follow_inc || is_entity_from_files(e, files) {
             match e.get_kind() {
                 EntityKind::FunctionDecl     => { if e.is_definition() { functions.push(*e); } },
                 EntityKind::FunctionTemplate => { if e.is_definition() { functions.push(*e); } },
@@ -92,7 +92,7 @@ fn main() {
         Some(dirname) => get_files_in_dir(dirname),
         None => args.into_iter().filter(|a| { !commands.contains(&a.as_str()) }).collect::<Vec<String>>(),
     };
-    // println!("files: {:?}", files); // uncomment for debug
+    println!("found {} files.", files.len());
 
     let clang = Clang::new().unwrap();
     let index = Index::new(&clang, false, false);
@@ -103,12 +103,14 @@ fn main() {
             translation_units.push(tu);
         }
     }
+    println!("Parsed {} translation units.", translation_units.len());
 
     let mut functions: Vec<Entity> = vec![];
     for tu in translation_units.iter() {
         let entity = tu.get_entity();
         functions.extend(get_functions_from_entity(&entity, follow_inc, &files));
     }
+    println!("Found {} function definitions.", functions.len());
 
     if !quiet {
         for function in functions.iter() {
