@@ -1,4 +1,6 @@
 #include <cstdio>
+#include <chrono>
+#include <iostream>
 #include "example.h"
 
 int foo(int a, int b);
